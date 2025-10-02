@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { api } from "@/lib/api"
 
-export function useReminderPoller(userId: number | null) {
+export function useReminder(userId: number | null) {
     useEffect(() => {
         if (!userId) return
 

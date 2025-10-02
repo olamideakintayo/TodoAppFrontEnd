@@ -1,22 +1,23 @@
 "use client"
 
 import type React from "react"
-import { ProtectedRoute } from "@/components/protected-route";
+import { ProtectedRoute } from "@/components/protected-route"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { api, type TodoResponse } from "@/lib/api"
+import { useReminder } from "@/hooks/use-reminder"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { CheckSquare, Plus, LogOut, User, Check, Clock } from "lucide-react"
@@ -24,7 +25,7 @@ import { TodoCard } from "@/components/todo-card"
 
 export default function DashboardPage() {
     const router = useRouter()
-    const { user, logout, isAuthenticated } = useAuth()
+    const { user, logout } = useAuth()
     const [todos, setTodos] = useState<TodoResponse[]>([])
     const [loading, setLoading] = useState(true)
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -34,13 +35,12 @@ export default function DashboardPage() {
         dueDate: "",
     })
 
+    // ✅ fixed hook name
+    useReminder(user?.userId ?? null)
+
     useEffect(() => {
-        if (!isAuthenticated) {
-            router.push("/login")
-            return
-        }
-        loadTodos()
-    }, [isAuthenticated, router])
+        if (user) loadTodos()
+    }, [user])
 
     const loadTodos = async () => {
         if (!user) return
@@ -101,9 +101,11 @@ export default function DashboardPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen items-center justify-center">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            </div>
+            <ProtectedRoute>
+                <div className="flex min-h-screen items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                </div>
+            </ProtectedRoute>
         )
     }
 
@@ -117,7 +119,9 @@ export default function DashboardPage() {
                             <CheckSquare className="h-7 w-7 text-primary" />
                             <div>
                                 <h1 className="font-mono text-xl font-bold">Tasking</h1>
-                                <p className="text-xs text-muted-foreground">Welcome back, {user?.username}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Welcome back, {user?.username}
+                                </p>
                             </div>
                         </div>
 
@@ -147,13 +151,17 @@ export default function DashboardPage() {
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardDescription>Active Tasks</CardDescription>
-                                <CardTitle className="text-3xl font-mono text-chart-2">{activeTodos.length}</CardTitle>
+                                <CardTitle className="text-3xl font-mono text-chart-2">
+                                    {activeTodos.length}
+                                </CardTitle>
                             </CardHeader>
                         </Card>
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardDescription>Completed</CardDescription>
-                                <CardTitle className="text-3xl font-mono text-muted-foreground">{completedTodos.length}</CardTitle>
+                                <CardTitle className="text-3xl font-mono text-muted-foreground">
+                                    {completedTodos.length}
+                                </CardTitle>
                             </CardHeader>
                         </Card>
                     </div>
@@ -171,7 +179,9 @@ export default function DashboardPage() {
                             <DialogContent>
                                 <DialogHeader>
                                     <DialogTitle>Create New Task</DialogTitle>
-                                    <DialogDescription>Add a new task to your list</DialogDescription>
+                                    <DialogDescription>
+                                        Add a new task to your list
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <form onSubmit={handleCreateTodo} className="space-y-4">
                                     <div className="space-y-2">
@@ -180,7 +190,9 @@ export default function DashboardPage() {
                                             id="title"
                                             placeholder="Task title"
                                             value={newTodo.title}
-                                            onChange={(e) => setNewTodo({ ...newTodo, title: e.target.value })}
+                                            onChange={(e) =>
+                                                setNewTodo({ ...newTodo, title: e.target.value })
+                                            }
                                             required
                                         />
                                     </div>
@@ -190,7 +202,9 @@ export default function DashboardPage() {
                                             id="description"
                                             placeholder="Task description (optional)"
                                             value={newTodo.description}
-                                            onChange={(e) => setNewTodo({ ...newTodo, description: e.target.value })}
+                                            onChange={(e) =>
+                                                setNewTodo({ ...newTodo, description: e.target.value })
+                                            }
                                             rows={3}
                                         />
                                     </div>
@@ -200,11 +214,17 @@ export default function DashboardPage() {
                                             id="dueDate"
                                             type="datetime-local"
                                             value={newTodo.dueDate}
-                                            onChange={(e) => setNewTodo({ ...newTodo, dueDate: e.target.value })}
+                                            onChange={(e) =>
+                                                setNewTodo({ ...newTodo, dueDate: e.target.value })
+                                            }
                                         />
                                     </div>
                                     <div className="flex justify-end gap-2">
-                                        <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setCreateDialogOpen(false)}
+                                        >
                                             Cancel
                                         </Button>
                                         <Button type="submit">Create Task</Button>
@@ -260,7 +280,9 @@ export default function DashboardPage() {
                             <CardContent className="flex flex-col items-center justify-center py-16">
                                 <CheckSquare className="mb-4 h-16 w-16 text-muted-foreground/50" />
                                 <h3 className="mb-2 text-xl font-semibold">No tasks yet</h3>
-                                <p className="mb-4 text-sm text-muted-foreground">Create your first task to get started</p>
+                                <p className="mb-4 text-sm text-muted-foreground">
+                                    Create your first task to get started
+                                </p>
                                 <Button onClick={() => setCreateDialogOpen(true)}>
                                     <Plus className="mr-2 h-4 w-4" />
                                     Create Task
