@@ -1,9 +1,12 @@
 import { useEffect } from "react"
 import { api } from "@/lib/api"
+import { useAuth } from "@/lib/auth-context"
 
 export function useReminder(userId: number | null) {
+    const { user } = useAuth()
+
     useEffect(() => {
-        if (!userId) return
+        if (!userId || !user?.email) return
 
         if (Notification.permission !== "granted") {
             Notification.requestPermission()
@@ -25,10 +28,20 @@ export function useReminder(userId: number | null) {
                                 new Notification("Reminder", { body: `Task: ${todo.title}` })
                             }
 
+                            if (rem.type === "EMAIL") {
+                                await fetch(
+                                    `${process.env.NEXT_PUBLIC_API_URL}/api/push-subscriptions/${userId}/send-email?subject=Task Reminder&message=${encodeURIComponent(
+                                        `Reminder for task: ${todo.title}`
+                                    )}`,
+                                    { method: "POST" }
+                                )
+                            }
+
+
                             await api.updateReminder(rem.id, {
                                 remindAt: rem.remindAt,
                                 type: rem.type,
-                                todoId: rem.todoId,
+                                todoId: rem.todoId
                             })
                         }
                     }
@@ -39,5 +52,5 @@ export function useReminder(userId: number | null) {
         }, 60000)
 
         return () => clearInterval(interval)
-    }, [userId])
+    }, [userId, user?.email])
 }

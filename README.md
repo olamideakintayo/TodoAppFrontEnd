@@ -1,4 +1,4 @@
-# TaskFlow - Modern Todo Application
+# Tasking - Todo Application
 
 A full-featured todo application with reminders, built with Next.js and integrated with a Spring Boot backend.
 
@@ -18,6 +18,10 @@ A full-featured todo application with reminders, built with Next.js and integrat
 - **State Management**: React Context API
 - **Date Handling**: date-fns
 - **Icons**: Lucide React
+- **API**: Spring Boot
+- **BackEnd**: Java 21, Spring Boot
+- **Database**: MYSQL
+- **Deployment**: Vercel
 
 ## Getting Started
 
