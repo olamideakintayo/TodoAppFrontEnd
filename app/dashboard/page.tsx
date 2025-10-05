@@ -35,7 +35,6 @@ export default function DashboardPage() {
         dueDate: "",
     })
 
-    // ✅ fixed hook name
     useReminder(user?.userId ?? null)
 
     useEffect(() => {
@@ -75,7 +74,7 @@ export default function DashboardPage() {
 
     const handleToggleComplete = async (todo: TodoResponse) => {
         try {
-            await api.updateTodo(todo.id, { completed: !todo.completed })
+            await api.updateTodo(todo.id, {completed: !todo.completed})
             loadTodos()
         } catch (error) {
             console.error("Failed to update todo:", error)
@@ -131,8 +130,8 @@ export default function DashboardPage() {
                                 Profile
                             </Button>
                             <Button variant="ghost" size="sm" onClick={handleLogout}>
-                                <LogOut className="mr-2 h-4 w-4" />
-                                Logout
+                                <LogOut className="mr-2 h-4 w-4 text-red-500 " />
+                                <div className="text-red-500">Logout</div>
                             </Button>
                         </div>
                     </div>
@@ -176,7 +175,7 @@ export default function DashboardPage() {
                                     New Task
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent className="bg-card/95 backdrop-blur-sm">
                                 <DialogHeader>
                                     <DialogTitle>Create New Task</DialogTitle>
                                     <DialogDescription>

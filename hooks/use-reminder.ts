@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 export function useReminder(userId: number | null) {
     const { user } = useAuth()
 
@@ -30,12 +31,14 @@ export function useReminder(userId: number | null) {
 
                             if (rem.type === "EMAIL") {
                                 await fetch(
-                                    `${process.env.NEXT_PUBLIC_API_URL}/api/push-subscriptions/${userId}/send-email?subject=Task Reminder&message=${encodeURIComponent(
+                                    `${API_BASE_URL}/api/push-subscriptions/${userId}/send-email?subject=Task Reminder&message=${encodeURIComponent(
                                         `Reminder for task: ${todo.title}`
                                     )}`,
                                     { method: "POST" }
                                 )
                             }
+
+
 
 
                             await api.updateReminder(rem.id, {

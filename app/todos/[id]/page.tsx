@@ -1,6 +1,5 @@
 "use client"
 
-import type React from "react"
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
@@ -15,25 +14,28 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Plus, Bell, Mail, Smartphone, Trash2, CheckCircle2 } from "lucide-react"
 import { format } from "date-fns"
+import { toast } from "sonner"
 
 export default function TodoDetailPage() {
     const router = useRouter()
     const params = useParams()
     const { isAuthenticated, isLoading } = useAuth()
+
     const [todo, setTodo] = useState<TodoResponse | null>(null)
     const [reminders, setReminders] = useState<ReminderResponse[]>([])
     const [loading, setLoading] = useState(true)
+
+
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
-    const [newReminder, setNewReminder] = useState({
-        remindAt: "",
-        type: "EMAIL" as "EMAIL" | "DESKTOP_NOTIFICATION" | "BOTH",
-    })
+    const [editDialogOpen, setEditDialogOpen] = useState(false)
+
+    const [newReminder, setNewReminder] = useState({ remindAt: "", type: "EMAIL" as "EMAIL" | "DESKTOP_NOTIFICATION" | "BOTH" })
+    const [editTodo, setEditTodo] = useState({ title: "", description: "", dueDate: "", completed: false })
 
     useEffect(() => {
         if (isLoading) return
@@ -55,63 +57,80 @@ export default function TodoDetailPage() {
                 api.getTodoById(todoId),
                 api.getRemindersByTodo(todoId),
             ])
-            if (todoData) {
-                setTodo(todoData)
-            }
+            setTodo(todoData)
             setReminders(remindersData)
-        } catch (error) {
-            console.error("Failed to load data:", error)
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to load todo details")
         } finally {
             setLoading(false)
         }
     }
 
+    // Edit Todo
+    const handleOpenEditDialog = () => {
+        if (!todo) return
+        setEditTodo({
+            title: todo.title,
+            description: todo.description || "",
+            dueDate: todo.dueDate ? new Date(todo.dueDate).toISOString().slice(0, 16) : "",
+            completed: todo.completed,
+        })
+        setEditDialogOpen(true)
+    }
+
+    const handleUpdateTodo = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!todo) return
+        try {
+            const updatedTodo = {
+                title: editTodo.title,
+                description: editTodo.description,
+                dueDate: editTodo.dueDate ? new Date(editTodo.dueDate).toISOString() : null,
+                completed: editTodo.completed,
+            }
+            const saved = await api.updateTodo(todo.id, updatedTodo)
+            setTodo(saved)
+            setEditDialogOpen(false)
+            toast.success("Todo updated successfully")
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to update todo")
+        }
+    }
+
+    // Create Reminder
     const handleCreateReminder = async (e: React.FormEvent) => {
         e.preventDefault()
         const todoId = Number(params.id)
-
+        if (!newReminder.remindAt) {
+            toast.error("Please select a date and time")
+            return
+        }
+        if (new Date(newReminder.remindAt).getTime() < Date.now()) {
+            toast.error("Remind time must be in the future")
+            return
+        }
         try {
-            const local = newReminder.remindAt
-            const date = new Date(local)
-
-            if (isNaN(date.getTime())) {
-                console.error("Invalid date")
-                return
-            }
-
-            if (date.getTime() < Date.now()) {
-                console.error("Remind time must be in the future")
-                return
-            }
-
-            if (newReminder.type === "BOTH") {
-                // Create two reminders: one EMAIL, one DESKTOP_NOTIFICATION
-                await Promise.all([
-                    api.createReminder(todoId, { remindAt: date.toISOString(), type: "EMAIL" }),
-                    api.createReminder(todoId, { remindAt: date.toISOString(), type: "DESKTOP_NOTIFICATION" }),
-                ])
-            } else {
-                // Normal single reminder
-                await api.createReminder(todoId, {
-                    remindAt: date.toISOString(),
-                    type: newReminder.type,
-                })
-            }
-
+            await api.createReminder(todoId, newReminder)
             setNewReminder({ remindAt: "", type: "EMAIL" })
             setCreateDialogOpen(false)
             loadData()
-        } catch (error) {
-            console.error("Failed to create reminder:", error)
+            toast.success("Reminder created successfully")
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to create reminder")
         }
     }
 
     const handleDeleteReminder = async (id: number) => {
         try {
             await api.deleteReminder(id)
-            loadData()
-        } catch (error) {
-            console.error("Failed to delete reminder:", error)
+            setReminders((prev) => prev.filter((r) => r.id !== id))
+            toast.success("Reminder deleted")
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to delete reminder")
         }
     }
 
@@ -126,6 +145,7 @@ export default function TodoDetailPage() {
         }
     }
 
+    // UI States
     if (loading) {
         return (
             <div className="flex min-h-screen items-center justify-center">
@@ -133,7 +153,6 @@ export default function TodoDetailPage() {
             </div>
         )
     }
-
     if (!todo) {
         return (
             <div className="flex min-h-screen items-center justify-center">
@@ -162,15 +181,17 @@ export default function TodoDetailPage() {
                 </div>
             </header>
 
-            {/* Main Content */}
+            {/* Main */}
             <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-                {/* Todo Info Card */}
+                {/* Todo Card */}
                 <Card className="mb-8">
                     <CardHeader>
                         <div className="flex items-start justify-between">
                             <div>
                                 <CardTitle className="text-2xl">{todo.title}</CardTitle>
-                                {todo.description && <CardDescription className="mt-2">{todo.description}</CardDescription>}
+                                {todo.description && (
+                                    <CardDescription className="mt-2">{todo.description}</CardDescription>
+                                )}
                             </div>
                             {todo.completed && (
                                 <Badge variant="secondary" className="bg-chart-2/20 text-chart-2">
@@ -188,125 +209,163 @@ export default function TodoDetailPage() {
                             </div>
                         </CardContent>
                     )}
+                    <CardContent>
+                        <Button onClick={handleOpenEditDialog}>Edit Todo</Button>
+                    </CardContent>
                 </Card>
 
-                {/* Reminders Section */}
-                <div className="mb-6 flex items-center justify-between">
-                    <h2 className="text-xl font-bold">Reminders</h2>
-                    <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Reminder
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Create Reminder</DialogTitle>
-                                <DialogDescription>Set up a reminder for this task</DialogDescription>
-                            </DialogHeader>
-                            <form onSubmit={handleCreateReminder} className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="remindAt">Remind At</Label>
-                                    <Input
-                                        id="remindAt"
-                                        type="datetime-local"
-                                        value={newReminder.remindAt}
-                                        onChange={(e) => setNewReminder({ ...newReminder, remindAt: e.target.value })}
-                                        required
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="type">Notification Type</Label>
-                                    <Select
-                                        value={newReminder.type}
-                                        onValueChange={(value: any) => setNewReminder({ ...newReminder, type: value })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="EMAIL">
-                                                <div className="flex items-center gap-2">
-                                                    <Mail className="h-4 w-4" />
-                                                    Email
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="DESKTOP_NOTIFICATION">
-                                                <div className="flex items-center gap-2">
-                                                    <Smartphone className="h-4 w-4" />
-                                                    Desktop Notification
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="BOTH">
-                                                <div className="flex items-center gap-2">
-                                                    <Bell className="h-4 w-4" />
-                                                    Both
-                                                </div>
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                                        Cancel
-                                    </Button>
-                                    <Button type="submit">Create Reminder</Button>
-                                </div>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-
-                {/* Reminders List */}
-                {reminders.length > 0 ? (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {reminders.map((reminder) => (
-                            <Card key={reminder.id} className={reminder.triggered ? "opacity-60" : ""}>
-                                <CardHeader className="pb-3">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-center gap-2">
-                                            {getReminderIcon(reminder.type)}
-                                            <CardTitle className="text-base">{reminder.type}</CardTitle>
+                {/* Reminders */}
+                <section className="mt-8">
+                    {reminders.length > 0 ? (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {reminders.map((r) => (
+                                <Card key={r.id} className={r.triggered ? "opacity-60" : ""}>
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex items-center gap-2">
+                                                {getReminderIcon(r.type)}
+                                                <CardTitle className="text-base">{r.type}</CardTitle>
+                                            </div>
+                                            {r.triggered && (
+                                                <Badge variant="secondary" className="text-xs">
+                                                    Triggered
+                                                </Badge>
+                                            )}
                                         </div>
-                                        {reminder.triggered && (
-                                            <Badge variant="secondary" className="text-xs">
-                                                Triggered
-                                            </Badge>
-                                        )}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <div className="text-sm">
-                                        <p className="text-muted-foreground">Scheduled for</p>
-                                        <p className="font-medium">{format(new Date(reminder.remindAt), "PPP 'at' p")}</p>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteReminder(reminder.id)}
-                                        className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                    >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Delete Reminder
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                ) : (
-                    <Card className="border-dashed">
-                        <CardContent className="flex flex-col items-center justify-center py-12">
-                            <Bell className="mb-4 h-12 w-12 text-muted-foreground/50" />
-                            <h3 className="mb-2 text-lg font-semibold">No reminders set</h3>
-                            <p className="mb-4 text-sm text-muted-foreground">Add a reminder to get notified about this task</p>
-                            <Button onClick={() => setCreateDialogOpen(true)}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Reminder
-                            </Button>
-                        </CardContent>
-                    </Card>
-                )}
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        <div className="text-sm">
+                                            <p className="text-muted-foreground">Scheduled for</p>
+                                            <p className="font-medium">
+                                                {format(new Date(r.remindAt), "PPP 'at' p")}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDeleteReminder(r.id)}
+                                            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                        >
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            Delete Reminder
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <Card className="border-dashed">
+                            <CardContent className="flex flex-col items-center justify-center py-12">
+                                <Bell className="mb-4 h-12 w-12 text-muted-foreground/50" />
+                                <h3 className="mb-2 text-lg font-semibold">No reminders set</h3>
+                                <p className="mb-4 text-sm text-muted-foreground">
+                                    Add a reminder to get notified about this task
+                                </p>
+                                <Button onClick={() => setCreateDialogOpen(true)}>
+                                    <Plus className="mr-2 h-4 w-4" />
+                                    Add Reminder
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+                </section>
+
+                {/* Create Reminder Dialog */}
+                <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add Reminder</DialogTitle>
+                            <DialogDescription>Set a reminder for this task</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleCreateReminder} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="remindAt">Remind At</Label>
+                                <Input
+                                    id="remindAt"
+                                    type="datetime-local"
+                                    value={newReminder.remindAt}
+                                    onChange={(e) => setNewReminder({ ...newReminder, remindAt: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Type</Label>
+                                <Select
+                                    value={newReminder.type}
+                                    onValueChange={(val) => setNewReminder({ ...newReminder, type: val as any })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="EMAIL">Email</SelectItem>
+                                        <SelectItem value="DESKTOP_NOTIFICATION">Desktop Notification</SelectItem>
+                                        <SelectItem value="BOTH">Both</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button type="submit">Create Reminder</Button>
+                            </div>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Edit Todo Dialog */}
+                <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Edit Todo</DialogTitle>
+                            <DialogDescription>Update your todo details</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleUpdateTodo} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="title">Title</Label>
+                                <Input
+                                    id="title"
+                                    value={editTodo.title}
+                                    onChange={(e) => setEditTodo({ ...editTodo, title: e.target.value })}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="description">Description</Label>
+                                <Input
+                                    id="description"
+                                    value={editTodo.description}
+                                    onChange={(e) => setEditTodo({ ...editTodo, description: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="dueDate">Due Date</Label>
+                                <Input
+                                    id="dueDate"
+                                    type="datetime-local"
+                                    value={editTodo.dueDate}
+                                    onChange={(e) => setEditTodo({ ...editTodo, dueDate: e.target.value })}
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    id="completed"
+                                    type="checkbox"
+                                    checked={editTodo.completed}
+                                    onChange={(e) => setEditTodo({ ...editTodo, completed: e.target.checked })}
+                                />
+                                <Label htmlFor="completed">Completed</Label>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button type="submit">Save Changes</Button>
+                            </div>
+                        </form>
+                    </DialogContent>
+                </Dialog>
             </main>
         </div>
     )
