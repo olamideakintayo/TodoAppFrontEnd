@@ -26,6 +26,10 @@ import { TodoCard } from "@/components/todo-card"
 export default function DashboardPage() {
     const router = useRouter()
     const { user, logout } = useAuth()
+
+    const userId = user?.user?.id ?? null
+
+
     const [todos, setTodos] = useState<TodoResponse[]>([])
     const [loading, setLoading] = useState(true)
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -35,16 +39,16 @@ export default function DashboardPage() {
         dueDate: "",
     })
 
-    useReminder(user?.userId ?? null)
+    useReminder(userId)
 
     useEffect(() => {
-        if (user) loadTodos()
-    }, [user])
+        if (userId) loadTodos()
+    }, [userId])
 
     const loadTodos = async () => {
-        if (!user) return
+        if (!userId) return
         try {
-            const data = await api.getTodosByUser(user.userId)
+            const data = await api.getTodosByUser(userId)
             setTodos(data)
         } catch (error) {
             console.error("Failed to load todos:", error)
@@ -55,7 +59,7 @@ export default function DashboardPage() {
 
     const handleCreateTodo = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!user) return
+        if (!userId) return
 
         try {
             const todoData = {
@@ -63,7 +67,7 @@ export default function DashboardPage() {
                 description: newTodo.description || undefined,
                 dueDate: newTodo.dueDate || undefined,
             }
-            await api.createTodo(user.userId, todoData)
+            await api.createTodo(userId, todoData)
             setNewTodo({ title: "", description: "", dueDate: "" })
             setCreateDialogOpen(false)
             loadTodos()
@@ -74,7 +78,12 @@ export default function DashboardPage() {
 
     const handleToggleComplete = async (todo: TodoResponse) => {
         try {
-            await api.updateTodo(todo.id, {completed: !todo.completed})
+            await api.updateTodo(todo.id, {
+                title: todo.title,
+                description: todo.description,
+                dueDate: todo.dueDate,
+                completed: !todo.completed,
+            })
             loadTodos()
         } catch (error) {
             console.error("Failed to update todo:", error)
@@ -119,7 +128,7 @@ export default function DashboardPage() {
                             <div>
                                 <h1 className="font-mono text-xl font-bold">Tasking</h1>
                                 <p className="text-xs text-muted-foreground">
-                                    Welcome back, {user?.username}
+                                    Welcome back, {user?.user?.username}
                                 </p>
                             </div>
                         </div>
@@ -178,9 +187,7 @@ export default function DashboardPage() {
                             <DialogContent className="bg-card/95 backdrop-blur-sm">
                                 <DialogHeader>
                                     <DialogTitle>Create New Task</DialogTitle>
-                                    <DialogDescription>
-                                        Add a new task to your list
-                                    </DialogDescription>
+                                    <DialogDescription>Add a new task to your list</DialogDescription>
                                 </DialogHeader>
                                 <form onSubmit={handleCreateTodo} className="space-y-4">
                                     <div className="space-y-2">
@@ -189,9 +196,7 @@ export default function DashboardPage() {
                                             id="title"
                                             placeholder="Task title"
                                             value={newTodo.title}
-                                            onChange={(e) =>
-                                                setNewTodo({ ...newTodo, title: e.target.value })
-                                            }
+                                            onChange={(e) => setNewTodo({ ...newTodo, title: e.target.value })}
                                             required
                                         />
                                     </div>
@@ -201,9 +206,7 @@ export default function DashboardPage() {
                                             id="description"
                                             placeholder="Task description (optional)"
                                             value={newTodo.description}
-                                            onChange={(e) =>
-                                                setNewTodo({ ...newTodo, description: e.target.value })
-                                            }
+                                            onChange={(e) => setNewTodo({ ...newTodo, description: e.target.value })}
                                             rows={3}
                                         />
                                     </div>
@@ -213,9 +216,7 @@ export default function DashboardPage() {
                                             id="dueDate"
                                             type="datetime-local"
                                             value={newTodo.dueDate}
-                                            onChange={(e) =>
-                                                setNewTodo({ ...newTodo, dueDate: e.target.value })
-                                            }
+                                            onChange={(e) => setNewTodo({ ...newTodo, dueDate: e.target.value })}
                                         />
                                     </div>
                                     <div className="flex justify-end gap-2">
