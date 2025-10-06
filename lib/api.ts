@@ -147,6 +147,17 @@ class ApiClient {
         if (!response.ok) throw new Error("Failed to delete todo")
     }
 
+    async sendEmail(userId: number, subject: string, message: string): Promise<void> {
+        const response = await fetch(
+            `${API_BASE_URL}/api/push-subscriptions/${userId}/send-email?subject=${encodeURIComponent(subject)}&message=${encodeURIComponent(message)}`,
+            {
+                method: "POST",
+                headers: this.getAuthHeader(),
+            }
+        )
+        if (!response.ok) throw new Error("Failed to send email notification")
+    }
+
     async getRemindersByTodo(todoId: number): Promise<ReminderResponse[]> {
         const response = await fetch(`${API_BASE_URL}/api/reminders/todo/${todoId}`, {
             headers: this.getAuthHeader(),
@@ -155,7 +166,7 @@ class ApiClient {
         return response.json()
     }
 
-    async createReminder(todoId: number, data: CreateReminderRequest): Promise<ReminderResponse[]> {
+    async createReminder(userId: number, todoId: number, data: CreateReminderRequest): Promise<ReminderResponse[]> {
         const remindersToCreate: ReminderRequest[] =
             data.type === "BOTH"
                 ? [
@@ -165,6 +176,7 @@ class ApiClient {
                 : [{ remindAt: new Date(data.remindAt).toISOString(), type: data.type }]
 
         const results: ReminderResponse[] = []
+
         for (const reminder of remindersToCreate) {
             const response = await fetch(`${API_BASE_URL}/api/reminders/${todoId}`, {
                 method: "POST",
@@ -174,11 +186,19 @@ class ApiClient {
                 },
                 body: JSON.stringify(reminder),
             })
+
             if (!response.ok) throw new Error("Failed to create reminder")
-            results.push(await response.json())
+            const createdReminder = await response.json()
+            results.push(createdReminder)
+
+            if (reminder.type === "EMAIL") {
+                await this.sendEmail(userId, "Reminder Notification", `Reminder set for todoId: ${todoId} at ${reminder.remindAt}`)
+            }
         }
+
         return results
     }
+
 
     async updateReminder(id: number, data: ReminderRequest): Promise<ReminderResponse> {
         const response = await fetch(`${API_BASE_URL}/api/reminders/${id}`, {
