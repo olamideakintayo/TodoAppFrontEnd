@@ -27,7 +27,7 @@ export default function DashboardPage() {
     const router = useRouter()
     const { user, logout } = useAuth()
 
-    const userId = user?.user?.id ?? null
+    const userId = user?.userId ?? null
 
 
     const [todos, setTodos] = useState<TodoResponse[]>([])
@@ -128,7 +128,7 @@ export default function DashboardPage() {
                             <div>
                                 <h1 className="font-mono text-xl font-bold">Tasking</h1>
                                 <p className="text-xs text-muted-foreground">
-                                    Welcome back, {user?.user?.username}
+                                    Welcome back, {user?.username}
                                 </p>
                             </div>
                         </div>

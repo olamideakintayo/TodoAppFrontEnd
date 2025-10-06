@@ -25,12 +25,10 @@ export interface ReminderRequest {
 export interface LoginResponse {
     message: string
     token: string
-    user: {
-        id: number
-        username: string
-        email: string
-        createdAt: string
-    }
+    userId: number
+    username: string
+    email: string
+    createdAt?: string
 }
 
 export interface UserResponse {

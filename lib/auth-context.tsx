@@ -18,29 +18,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [initialized, setInitialized] = useState(false)
 
     useEffect(() => {
-        try {
-            const token = localStorage.getItem("token")
-            const userData = localStorage.getItem("user")
+        const initAuth = () => {
+            try {
+                // Check if we're in the browser
+                if (typeof window === 'undefined') {
+                    setInitialized(true)
+                    return
+                }
 
-            if (token && userData) {
-                setUser(JSON.parse(userData))
+                const token = localStorage.getItem("token")
+                const userData = localStorage.getItem("user")
+
+                console.log("Auth init - token exists:", !!token, "userData exists:", !!userData)
+
+                if (token && userData) {
+                    const parsedUser = JSON.parse(userData)
+                    console.log("Restoring user:", parsedUser)
+                    setUser(parsedUser)
+                }
+            } catch (err) {
+                console.error("Failed to restore auth state:", err)
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem("token")
+                    localStorage.removeItem("user")
+                }
+            } finally {
+                setInitialized(true)
+                console.log("Auth initialized")
             }
-        } catch (err) {
-            console.error("Failed to restore auth state:", err)
-            localStorage.removeItem("token")
-            localStorage.removeItem("user")
-        } finally {
-            setInitialized(true)
         }
+
+        initAuth()
     }, [])
 
     const login = (userData: LoginResponse) => {
+        console.log("Login called with:", userData)
         localStorage.setItem("token", userData.token)
         localStorage.setItem("user", JSON.stringify(userData))
         setUser(userData)
     }
 
     const logout = () => {
+        console.log("Logout called")
         localStorage.removeItem("token")
         localStorage.removeItem("user")
         setUser(null)
