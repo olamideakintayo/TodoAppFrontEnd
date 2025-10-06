@@ -1,6 +1,5 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 
-// ---------- REQUEST DTOs ----------
 export interface LoginRequest {
     usernameOrEmail: string
     password: string
@@ -23,7 +22,6 @@ export interface ReminderRequest {
     type: "EMAIL" | "DESKTOP_NOTIFICATION"
 }
 
-// ---------- RESPONSE DTOs ----------
 export interface LoginResponse {
     message: string
     token: string
@@ -59,7 +57,6 @@ export interface ReminderResponse {
     todoId: number
 }
 
-// ---------- FRONTEND TYPES ----------
 export type FrontendReminderType = "EMAIL" | "DESKTOP_NOTIFICATION" | "BOTH"
 
 export type CreateReminderRequest = {
@@ -67,7 +64,6 @@ export type CreateReminderRequest = {
     type: FrontendReminderType
 }
 
-// ---------- API CLIENT ----------
 class ApiClient {
     private getAuthHeader(): HeadersInit {
         const token = localStorage.getItem("token")
@@ -99,9 +95,7 @@ class ApiClient {
             headers: this.getAuthHeader(),
         })
         if (response.status === 404) return []
-        if (!response.ok) {
-            throw new Error(`Failed to fetch todos (${response.status})`)
-        }
+        if (!response.ok) throw new Error(`Failed to fetch todos (${response.status})`)
         return response.json()
     }
 
@@ -126,12 +120,15 @@ class ApiClient {
         return response.json()
     }
 
-    async updateTodo(id: number, data: {
-        title: string;
-        description: string;
-        dueDate: string | null;
-        completed: boolean
-    }): Promise<TodoResponse> {
+    async updateTodo(
+        id: number,
+        data: {
+            title: string
+            description: string
+            dueDate: string | null
+            completed: boolean
+        }
+    ): Promise<TodoResponse> {
         const response = await fetch(`${API_BASE_URL}/api/todos/${id}`, {
             method: "PUT",
             headers: {

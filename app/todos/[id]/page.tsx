@@ -3,11 +3,17 @@
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { api, type TodoResponse, type ReminderResponse } from "@/lib/api"
+import { api, type TodoResponse, type ReminderResponse, type CreateReminderRequest } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card"
 import {
     Dialog,
     DialogContent,
@@ -15,9 +21,23 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Plus, Bell, Mail, Smartphone, Trash2, CheckCircle2 } from "lucide-react"
+import {
+    ArrowLeft,
+    Plus,
+    Bell,
+    Mail,
+    Smartphone,
+    Trash2,
+    CheckCircle2,
+} from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
@@ -30,12 +50,20 @@ export default function TodoDetailPage() {
     const [reminders, setReminders] = useState<ReminderResponse[]>([])
     const [loading, setLoading] = useState(true)
 
-
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
 
-    const [newReminder, setNewReminder] = useState({ remindAt: "", type: "EMAIL" as "EMAIL" | "DESKTOP_NOTIFICATION" | "BOTH" })
-    const [editTodo, setEditTodo] = useState({ title: "", description: "", dueDate: "", completed: false })
+    const [newReminder, setNewReminder] = useState<CreateReminderRequest>({
+        remindAt: "",
+        type: "EMAIL",
+    })
+
+    const [editTodo, setEditTodo] = useState({
+        title: "",
+        description: "",
+        dueDate: "",
+        completed: false,
+    })
 
     useEffect(() => {
         if (isLoading) return
@@ -53,12 +81,12 @@ export default function TodoDetailPage() {
             return
         }
         try {
-            const [todoData, remindersData] = await Promise.all([
+            const [todoRes, remindersRes] = await Promise.all([
                 api.getTodoById(todoId),
                 api.getRemindersByTodo(todoId),
             ])
-            setTodo(todoData)
-            setReminders(remindersData)
+            setTodo(todoRes)
+            setReminders(remindersRes)
         } catch (err) {
             console.error(err)
             toast.error("Failed to load todo details")
@@ -219,26 +247,19 @@ export default function TodoDetailPage() {
                     {reminders.length > 0 ? (
                         <div className="grid gap-4 sm:grid-cols-2">
                             {reminders.map((r) => (
-                                <Card key={r.id} className={r.triggered ? "opacity-60" : ""}>
+                                <Card key={r.id}>
                                     <CardHeader className="pb-3">
                                         <div className="flex items-start justify-between">
                                             <div className="flex items-center gap-2">
                                                 {getReminderIcon(r.type)}
                                                 <CardTitle className="text-base">{r.type}</CardTitle>
                                             </div>
-                                            {r.triggered && (
-                                                <Badge variant="secondary" className="text-xs">
-                                                    Triggered
-                                                </Badge>
-                                            )}
                                         </div>
                                     </CardHeader>
                                     <CardContent className="space-y-3">
                                         <div className="text-sm">
                                             <p className="text-muted-foreground">Scheduled for</p>
-                                            <p className="font-medium">
-                                                {format(new Date(r.remindAt), "PPP 'at' p")}
-                                            </p>
+                                            <p className="font-medium">{format(new Date(r.remindAt), "PPP 'at' p")}</p>
                                         </div>
                                         <Button
                                             variant="ghost"
