@@ -28,9 +28,8 @@ export default function SendEmailDialog({ userId, open, onClose }: SendEmailDial
 
         try {
             setLoading(true)
-            await api.sendEmail(userId, email, subject, message)
+            await api.sendEmail(userId, subject, message)
             toast.success("✅ Email reminder sent successfully!")
-            setEmail("")
             setSubject("")
             setMessage("")
             onClose()

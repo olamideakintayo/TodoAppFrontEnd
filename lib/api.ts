@@ -51,7 +51,7 @@ export interface TodoResponse {
 export interface ReminderResponse {
     id: number
     remindAt: string
-    type: "EMAIL" | "DESKTOP_NOTIFICATION"
+    type: FrontendReminderType
     todoId: number
 }
 
@@ -147,7 +147,7 @@ class ApiClient {
         if (!response.ok) throw new Error("Failed to delete todo")
     }
 
-    async sendEmail(userId: number, subject: string, message: string): Promise<void> {
+    async sendEmail(userId: number, subject: string,  message: string): Promise<void> {
         const url =
             `${API_BASE_URL}/api/push-subscriptions/${userId}/send-email` +
             `?subject=${encodeURIComponent(subject)}` +
@@ -174,22 +174,22 @@ class ApiClient {
         return response.json()
     }
 
-    async createReminder(userId: number, todoId: number, data?: CreateReminderRequest): Promise<ReminderResponse[]> {
+    async createReminder(todoId: number, data?: CreateReminderRequest): Promise<ReminderResponse[]> {
         if (!data || !data.type || !data.remindAt) {
             throw new Error("Invalid reminder request: missing type or remindAt")
         }
 
+        const remindAtISO = new Date(data.remindAt).toISOString()
         const remindersToCreate: ReminderRequest[] =
             data.type === "BOTH"
                 ? [
-                    { remindAt: new Date(data.remindAt).toISOString(), type: "EMAIL" },
-                    { remindAt: new Date(data.remindAt).toISOString(), type: "DESKTOP_NOTIFICATION" },
+                    { remindAt: remindAtISO, type: "EMAIL" },
+                    { remindAt: remindAtISO, type: "DESKTOP_NOTIFICATION" },
                 ]
-                : [{ remindAt: new Date(data.remindAt).toISOString(), type: data.type }]
-
+                : [{ remindAt: remindAtISO, type: data.type }]
 
         const results: ReminderResponse[] = []
-
+        const userId = Number(localStorage.getItem("userId"))
         for (const reminder of remindersToCreate) {
             const response = await fetch(`${API_BASE_URL}/api/reminders/${todoId}`, {
                 method: "POST",
@@ -200,17 +200,23 @@ class ApiClient {
                 body: JSON.stringify(reminder),
             })
 
-            if (!response.ok) throw new Error("Failed to create reminder")
+            if (!response.ok) {
+                const errText = await response.text()
+                console.error("Backend error:", errText)
+                throw new Error("Failed to create reminder")
+            }
+
             const createdReminder = await response.json()
             results.push(createdReminder)
 
             if (reminder.type === "EMAIL") {
-                await this.sendEmail(userId, "Reminder Notification", `Reminder set for todoId: ${todoId} at ${reminder.remindAt} `)
+                await this.sendEmail(userId, "Reminder Notification", `Reminder set for todoId: ${todoId} at ${reminder.remindAt}`)
             }
         }
 
         return results
     }
+
 
 
     async updateReminder(id: number, data: ReminderRequest): Promise<ReminderResponse> {

@@ -20,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const initAuth = () => {
             try {
-                if (typeof window === 'undefined') {
+                if (typeof window === "undefined") {
                     setInitialized(true)
                     return
                 }
@@ -32,14 +32,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 if (token && userData) {
                     const parsedUser = JSON.parse(userData)
+
+
+                    if (parsedUser.userId && !localStorage.getItem("userId")) {
+                        localStorage.setItem("userId", String(parsedUser.userId))
+                    }
+
                     console.log("Restoring user:", parsedUser)
                     setUser(parsedUser)
                 }
             } catch (err) {
                 console.error("Failed to restore auth state:", err)
-                if (typeof window !== 'undefined') {
+                if (typeof window !== "undefined") {
                     localStorage.removeItem("token")
                     localStorage.removeItem("user")
+                    localStorage.removeItem("userId")
                 }
             } finally {
                 setInitialized(true)
@@ -54,6 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Login called with:", userData)
         localStorage.setItem("token", userData.token)
         localStorage.setItem("user", JSON.stringify(userData))
+
+
+        if (userData.userId) {
+            localStorage.setItem("userId", String(userData.userId))
+        }
+
         setUser(userData)
     }
 
@@ -61,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("Logout called")
         localStorage.removeItem("token")
         localStorage.removeItem("user")
+        localStorage.removeItem("userId")
         setUser(null)
     }
 

@@ -147,43 +147,72 @@ export default function TodoDetailPage() {
     }
 
     // Create Reminder
-    const handleCreateReminder = async (e: React.FormEvent) => {
-        e.preventDefault()
-        const todoId = Number(params.id)
+    const handleCreateReminder = async (e?: React.FormEvent | React.MouseEvent) => {
+        // support both form submit and button click
+        try { (e as any)?.preventDefault?.(); } catch {}
 
-        if (!newReminder.remindAt) {
-            toast.error("Please select a date and time")
-            return
+        console.log("handleCreateReminder called", { newReminder, paramsId: params.id });
+
+        // basic validation with explicit logs
+        if (!newReminder?.remindAt) {
+            console.warn("Validation failed: remindAt missing", newReminder);
+            toast.error("Please select a date and time");
+            return;
         }
-        if (new Date(newReminder.remindAt).getTime() < Date.now()) {
-            toast.error("Remind time must be in the future")
-            return
+        const remindTs = new Date(newReminder.remindAt).getTime();
+        if (Number.isNaN(remindTs)) {
+            console.warn("Validation failed: invalid remindAt", newReminder.remindAt);
+            toast.error("Invalid date/time");
+            return;
+        }
+        if (remindTs < Date.now()) {
+            console.warn("Validation failed: remindAt in the past", newReminder.remindAt);
+            toast.error("Remind time must be in the future");
+            return;
         }
 
-        setSubmitting(true)
+        setSubmitting(true);
         try {
-            const userId = localStorage.getItem("userId")
-                ? Number(localStorage.getItem("userId"))
-                : undefined
-
-            if (!userId) {
-                toast.error("User not found. Please log in again.")
-                return
+            const todoId = Number(params.id);
+            if (!Number.isFinite(todoId)) {
+                console.error("Invalid todo id:", params.id);
+                toast.error("Invalid todo id");
+                return;
             }
 
-            await api.createReminder(userId, todoId, newReminder)
+            const userIdLS = localStorage.getItem("userId");
+            const token = localStorage.getItem("token");
+            console.log("LocalStorage (userId, token):", { userIdLS, token });
 
-            setNewReminder({ remindAt: "", type: "EMAIL" })
-            setCreateDialogOpen(false)
-            loadReminders()
-            toast.success("Reminder created successfully")
-        } catch (err) {
-            console.error(err)
-            toast.error("Failed to create reminder")
+            // Log what will be sent (match the API client's behavior)
+            const remindAtISO = new Date(newReminder.remindAt).toISOString();
+            const payloadPreview =
+                newReminder.type === "BOTH"
+                    ? [
+                        { remindAt: remindAtISO, type: "EMAIL" },
+                        { remindAt: remindAtISO, type: "DESKTOP_NOTIFICATION" },
+                    ]
+                    : [{ remindAt: remindAtISO, type: newReminder.type }];
+
+            console.log("Calling api.createReminder", { todoId, payloadPreview });
+
+            const result = await api.createReminder(todoId, newReminder);
+            console.log("api.createReminder result:", result);
+
+            // reload UI
+            await loadReminders();
+            setCreateDialogOpen(false);
+            setNewReminder({ remindAt: "", type: "EMAIL" });
+            toast.success("Reminder created successfully");
+        } catch (err: any) {
+            console.error("handleCreateReminder error:", err);
+            // make sure user sees the error message from server if available
+            toast.error(err?.message ?? "Failed to create reminder");
         } finally {
-            setSubmitting(false)
+            setSubmitting(false);
         }
-    }
+    };
+
 
     // Delete Reminder
     const handleDeleteReminder = async () => {

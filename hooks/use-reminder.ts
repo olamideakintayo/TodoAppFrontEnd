@@ -2,58 +2,97 @@ import { useEffect } from "react"
 import { api } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
-export function useReminder(userId: number | null) {
-    const { user } = useAuth()
+const triggeredReminders = new Set<number>()
+
+export function useReminder() {
+    const { user, isAuthenticated } = useAuth()
 
     useEffect(() => {
-        if (!userId || !user?.email) return
-
-        if (Notification.permission !== "granted") {
-            Notification.requestPermission()
+        // Gracefully handle missing user or email
+        if (!isAuthenticated || !user?.email) {
+            console.log("Reminder hook inactive: no authenticated user")
+            return
         }
+
+        //  Resolve userId safely (from context or localStorage)
+        const userId =
+            typeof user.userId === "number"
+                ? user.userId
+                : Number(localStorage.getItem("userId"))
+
+        if (!userId || isNaN(userId)) {
+            console.warn("No valid userId found, skipping reminders")
+            return
+        }
+
+        // Request desktop notification permission if needed
+        if (Notification.permission === "default") {
+            Notification.requestPermission().then((result) => {
+                console.log("Notification permission:", result)
+            })
+        }
+
+        console.log("Reminder watcher active for userId:", userId)
 
         const interval = setInterval(async () => {
             try {
                 const todos = await api.getTodosByUser(userId)
+                if (!todos?.length) return
 
                 for (const todo of todos) {
                     const reminders = await api.getRemindersByTodo(todo.id)
+                    if (!reminders?.length) continue
 
-                    for (const rem of reminders) {
+                    for (const reminder of reminders) {
                         const now = new Date()
-                        const remindAt = new Date(rem.remindAt)
+                        const remindAt = new Date(reminder.remindAt)
 
-                        if (!rem.triggered && remindAt <= now) {
-                            if (rem.type === "DESKTOP_NOTIFICATION") {
-                                new Notification("Reminder", { body: `Task: ${todo.title}` })
+                        const shouldTrigger =
+                            !triggeredReminders.has(reminder.id) && remindAt <= now
+
+                        if (shouldTrigger) {
+                            triggeredReminders.add(reminder.id)
+
+                            // ✅ Desktop notification
+                            if (
+                                reminder.type === "DESKTOP_NOTIFICATION" ||
+                                reminder.type === "BOTH"
+                            ) {
+                                new Notification("Task Reminder", {
+                                    body: `Task: ${todo.title}`,
+                                })
                             }
 
-                            if (rem.type === "EMAIL") {
-                                await fetch(
-                                    `${API_BASE_URL}/api/push-subscriptions/${userId}/send-email?subject=Task Reminder&message=${encodeURIComponent(
-                                        `Reminder for task: ${todo.title}`
-                                    )}`,
-                                    { method: "POST" }
+
+                            if (
+                                reminder.type === "EMAIL" ||
+                                reminder.type === "BOTH"
+                            ) {
+                                await api.sendEmail(
+                                    userId,
+                                    "Task Reminder",
+                                    `Reminder for task: ${todo.title}`,
                                 )
                             }
 
-
-
-
-                            await api.updateReminder(rem.id, {
-                                remindAt: rem.remindAt,
-                                type: rem.type,
-                                todoId: rem.todoId
-                            })
+                            // ✅ Mark reminder as triggered or updated
+                            if (reminder.type === "EMAIL" || reminder.type === "DESKTOP_NOTIFICATION") {
+                                await api.updateReminder(reminder.id, {
+                                    remindAt: reminder.remindAt,
+                                    type: reminder.type,
+                                })
+                            }
                         }
                     }
                 }
             } catch (err) {
                 console.error("Reminder poller error:", err)
             }
-        }, 60000)
+        }, 60_000)
 
-        return () => clearInterval(interval)
-    }, [userId, user?.email])
+        return () => {
+            clearInterval(interval)
+            console.log("Reminder watcher stopped for userId:", userId)
+        }
+    }, [user?.userId, isAuthenticated, user?.email])
 }
