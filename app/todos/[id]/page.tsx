@@ -48,10 +48,13 @@ export default function TodoDetailPage() {
 
     const [todo, setTodo] = useState<TodoResponse | null>(null)
     const [reminders, setReminders] = useState<ReminderResponse[]>([])
-    const [loading, setLoading] = useState(true)
+
+    const [loadingTodo, setLoadingTodo] = useState(true)
+    const [loadingReminders, setLoadingReminders] = useState(true)
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState<number | null>(null)
 
     const [newReminder, setNewReminder] = useState<CreateReminderRequest>({
         remindAt: "",
@@ -65,33 +68,46 @@ export default function TodoDetailPage() {
         completed: false,
     })
 
+    const [submitting, setSubmitting] = useState(false)
+
     useEffect(() => {
         if (isLoading) return
         if (!isAuthenticated) {
             router.push("/login")
             return
         }
-        loadData()
+        loadTodo()
+        loadReminders()
     }, [isAuthenticated, isLoading, router, params.id])
 
-    const loadData = async () => {
+    const loadTodo = async () => {
         const todoId = Number(params.id)
         if (!Number.isFinite(todoId)) {
-            setLoading(false)
+            setLoadingTodo(false)
             return
         }
         try {
-            const [todoRes, remindersRes] = await Promise.all([
-                api.getTodoById(todoId),
-                api.getRemindersByTodo(todoId),
-            ])
+            const todoRes = await api.getTodoById(todoId)
             setTodo(todoRes)
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to load todo")
+        } finally {
+            setLoadingTodo(false)
+        }
+    }
+
+    const loadReminders = async () => {
+        const todoId = Number(params.id)
+        setLoadingReminders(true)
+        try {
+            const remindersRes = await api.getRemindersByTodo(todoId)
             setReminders(remindersRes)
         } catch (err) {
             console.error(err)
-            toast.error("Failed to load todo details")
+            toast.error("Failed to load reminders")
         } finally {
-            setLoading(false)
+            setLoadingReminders(false)
         }
     }
 
@@ -110,6 +126,7 @@ export default function TodoDetailPage() {
     const handleUpdateTodo = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!todo) return
+        setSubmitting(true)
         try {
             const updatedTodo = {
                 title: editTodo.title,
@@ -124,6 +141,8 @@ export default function TodoDetailPage() {
         } catch (err) {
             console.error(err)
             toast.error("Failed to update todo")
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -131,6 +150,7 @@ export default function TodoDetailPage() {
     const handleCreateReminder = async (e: React.FormEvent) => {
         e.preventDefault()
         const todoId = Number(params.id)
+
         if (!newReminder.remindAt) {
             toast.error("Please select a date and time")
             return
@@ -139,26 +159,46 @@ export default function TodoDetailPage() {
             toast.error("Remind time must be in the future")
             return
         }
+
+        setSubmitting(true)
         try {
-            await api.createReminder(todoId, newReminder)
+            const userId = localStorage.getItem("userId")
+                ? Number(localStorage.getItem("userId"))
+                : undefined
+
+            if (!userId) {
+                toast.error("User not found. Please log in again.")
+                return
+            }
+
+            await api.createReminder(userId, todoId, newReminder)
+
             setNewReminder({ remindAt: "", type: "EMAIL" })
             setCreateDialogOpen(false)
-            loadData()
+            loadReminders()
             toast.success("Reminder created successfully")
         } catch (err) {
             console.error(err)
             toast.error("Failed to create reminder")
+        } finally {
+            setSubmitting(false)
         }
     }
 
-    const handleDeleteReminder = async (id: number) => {
+    // Delete Reminder
+    const handleDeleteReminder = async () => {
+        if (deleteDialogOpen === null) return
+        setSubmitting(true)
         try {
-            await api.deleteReminder(id)
-            setReminders((prev) => prev.filter((r) => r.id !== id))
+            await api.deleteReminder(deleteDialogOpen)
+            setReminders((prev) => prev.filter((r) => r.id !== deleteDialogOpen))
             toast.success("Reminder deleted")
+            setDeleteDialogOpen(null)
         } catch (err) {
             console.error(err)
             toast.error("Failed to delete reminder")
+        } finally {
+            setSubmitting(false)
         }
     }
 
@@ -168,13 +208,20 @@ export default function TodoDetailPage() {
                 return <Mail className="h-4 w-4" />
             case "DESKTOP_NOTIFICATION":
                 return <Smartphone className="h-4 w-4" />
+            case "BOTH":
+                return (
+                    <div className="flex gap-1">
+                        <Mail className="h-4 w-4" />
+                        <Smartphone className="h-4 w-4" />
+                    </div>
+                )
             default:
                 return <Bell className="h-4 w-4" />
         }
     }
 
     // UI States
-    if (loading) {
+    if (loadingTodo) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -244,7 +291,11 @@ export default function TodoDetailPage() {
 
                 {/* Reminders */}
                 <section className="mt-8">
-                    {reminders.length > 0 ? (
+                    {loadingReminders ? (
+                        <div className="flex justify-center py-12">
+                            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        </div>
+                    ) : reminders.length > 0 ? (
                         <div className="grid gap-4 sm:grid-cols-2">
                             {reminders.map((r) => (
                                 <Card key={r.id}>
@@ -264,7 +315,7 @@ export default function TodoDetailPage() {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => handleDeleteReminder(r.id)}
+                                            onClick={() => setDeleteDialogOpen(r.id)}
                                             className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
                                         >
                                             <Trash2 className="mr-2 h-4 w-4" />
@@ -329,7 +380,9 @@ export default function TodoDetailPage() {
                                 <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                                     Cancel
                                 </Button>
-                                <Button type="submit">Create Reminder</Button>
+                                <Button type="submit" disabled={submitting}>
+                                    {submitting ? "Creating..." : "Create Reminder"}
+                                </Button>
                             </div>
                         </form>
                     </DialogContent>
@@ -382,9 +435,35 @@ export default function TodoDetailPage() {
                                 <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>
                                     Cancel
                                 </Button>
-                                <Button type="submit">Save Changes</Button>
+                                <Button type="submit" disabled={submitting}>
+                                    {submitting ? "Saving..." : "Save Changes"}
+                                </Button>
                             </div>
                         </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Delete Reminder Confirm Dialog */}
+                <Dialog open={deleteDialogOpen !== null} onOpenChange={() => setDeleteDialogOpen(null)}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Confirm Delete</DialogTitle>
+                            <DialogDescription>
+                                Are you sure you want to delete this reminder? This action cannot be undone.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex justify-end gap-2">
+                            <Button variant="outline" onClick={() => setDeleteDialogOpen(null)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={handleDeleteReminder}
+                                disabled={submitting}
+                            >
+                                {submitting ? "Deleting..." : "Delete"}
+                            </Button>
+                        </div>
                     </DialogContent>
                 </Dialog>
             </main>

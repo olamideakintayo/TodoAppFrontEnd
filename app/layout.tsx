@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Tasking - Modern Todo Application",
+  title: "Tasking - Todo Application",
   description: "Manage your tasks efficiently with reminders and notifications",
 }
 

@@ -20,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const initAuth = () => {
             try {
-                // Check if we're in the browser
                 if (typeof window === 'undefined') {
                     setInitialized(true)
                     return

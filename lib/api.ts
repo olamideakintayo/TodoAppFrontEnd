@@ -65,13 +65,13 @@ export type CreateReminderRequest = {
 class ApiClient {
     private getAuthHeader(): HeadersInit {
         const token = localStorage.getItem("token")
-        return token ? { Authorization: `Bearer ${token}` } : {}
+        return token ? {Authorization: `Bearer ${token}`} : {}
     }
 
     async login(data: LoginRequest): Promise<LoginResponse> {
         const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {"Content-Type": "application/json"},
             body: JSON.stringify(data),
         })
         if (!response.ok) throw new Error("Login failed")
@@ -81,7 +81,7 @@ class ApiClient {
     async register(data: RegisterRequest): Promise<UserResponse> {
         const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {"Content-Type": "application/json"},
             body: JSON.stringify(data),
         })
         if (!response.ok) throw new Error("Registration failed")
@@ -148,15 +148,23 @@ class ApiClient {
     }
 
     async sendEmail(userId: number, subject: string, message: string): Promise<void> {
-        const response = await fetch(
-            `${API_BASE_URL}/api/push-subscriptions/${userId}/send-email?subject=${encodeURIComponent(subject)}&message=${encodeURIComponent(message)}`,
-            {
-                method: "POST",
-                headers: this.getAuthHeader(),
-            }
-        )
-        if (!response.ok) throw new Error("Failed to send email notification")
+        const url =
+            `${API_BASE_URL}/api/push-subscriptions/${userId}/send-email` +
+            `?subject=${encodeURIComponent(subject)}` +
+            `&message=${encodeURIComponent(message)}`
+
+        const response = await fetch(url, {
+            method: "POST",
+            headers: {
+                ...this.getAuthHeader(),
+            },
+        })
+
+        if (!response.ok) {
+            throw new Error(`Failed to send email notification (${response.status})`)
+        }
     }
+
 
     async getRemindersByTodo(todoId: number): Promise<ReminderResponse[]> {
         const response = await fetch(`${API_BASE_URL}/api/reminders/todo/${todoId}`, {
@@ -166,7 +174,11 @@ class ApiClient {
         return response.json()
     }
 
-    async createReminder(userId: number, todoId: number, data: CreateReminderRequest): Promise<ReminderResponse[]> {
+    async createReminder(userId: number, todoId: number, data?: CreateReminderRequest): Promise<ReminderResponse[]> {
+        if (!data || !data.type || !data.remindAt) {
+            throw new Error("Invalid reminder request: missing type or remindAt")
+        }
+
         const remindersToCreate: ReminderRequest[] =
             data.type === "BOTH"
                 ? [
@@ -174,6 +186,7 @@ class ApiClient {
                     { remindAt: new Date(data.remindAt).toISOString(), type: "DESKTOP_NOTIFICATION" },
                 ]
                 : [{ remindAt: new Date(data.remindAt).toISOString(), type: data.type }]
+
 
         const results: ReminderResponse[] = []
 
@@ -192,7 +205,7 @@ class ApiClient {
             results.push(createdReminder)
 
             if (reminder.type === "EMAIL") {
-                await this.sendEmail(userId, "Reminder Notification", `Reminder set for todoId: ${todoId} at ${reminder.remindAt}`)
+                await this.sendEmail(userId, "Reminder Notification", `Reminder set for todoId: ${todoId} at ${reminder.remindAt} `)
             }
         }
 
