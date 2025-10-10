@@ -1,3 +1,4 @@
+import { toast } from "@/components/ui/use-toast"
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"
 
 export interface LoginRequest {
@@ -174,52 +175,94 @@ class ApiClient {
         return response.json()
     }
 
-    async createReminder(todoId: number, data?: CreateReminderRequest): Promise<ReminderResponse[]> {
-        if (!data || !data.type || !data.remindAt) {
-            throw new Error("Invalid reminder request: missing type or remindAt")
-        }
 
-        const remindAtISO = new Date(data.remindAt).toISOString()
-        const remindersToCreate: ReminderRequest[] =
-            data.type === "BOTH"
-                ? [
-                    { remindAt: remindAtISO, type: "EMAIL" },
-                    { remindAt: remindAtISO, type: "DESKTOP_NOTIFICATION" },
-                ]
-                : [{ remindAt: remindAtISO, type: data.type }]
+async createReminder(todoId: number, data?: CreateReminderRequest): Promise<ReminderResponse[]> {
+    if (!data || !data.type || !data.remindAt) {
+    throw new Error("Invalid reminder request: missing type or remindAt")
+}
 
-        const results: ReminderResponse[] = []
-        const userId = Number(localStorage.getItem("userId"))
-        for (const reminder of remindersToCreate) {
-            const response = await fetch(`${API_BASE_URL}/api/reminders/${todoId}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...this.getAuthHeader(),
-                },
-                body: JSON.stringify(reminder),
+const remindAtISO = new Date(data.remindAt).toISOString()
+const remindersToCreate: ReminderRequest[] =
+    data.type === "BOTH"
+        ? [
+            { remindAt: remindAtISO, type: "EMAIL" },
+            { remindAt: remindAtISO, type: "DESKTOP_NOTIFICATION" },
+        ]
+        : [{ remindAt: remindAtISO, type: data.type }]
+
+const results: ReminderResponse[] = []
+const userId = Number(localStorage.getItem("userId"))
+
+for (const reminder of remindersToCreate) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/reminders/${todoId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...this.getAuthHeader(),
+            },
+            body: JSON.stringify(reminder),
+        })
+
+        if (response.status === 409) {
+            toast({
+                title: "Duplicate Reminder ⚠️",
+                description: `A reminder already exists for this todo at ${new Date(reminder.remindAt).toLocaleString()}.`,
+                variant: "destructive",
             })
-
-            if (!response.ok) {
-                const errText = await response.text()
-                console.error("Backend error:", errText)
-                throw new Error("Failed to create reminder")
-            }
-
-            const createdReminder = await response.json()
-            results.push(createdReminder)
-
-            if (reminder.type === "EMAIL") {
-                await this.sendEmail(userId, "Reminder Notification", `Reminder set for todoId: ${todoId} at ${reminder.remindAt}`)
-            }
+            console.warn(`Duplicate reminder detected for todo ${todoId}`)
+            continue
         }
 
-        return results
+        if (!response.ok) {
+            const errText = await response.text()
+            console.error("Backend error:", errText)
+            toast({
+                title: "Error",
+                description: "Failed to create reminder. Please try again.",
+                variant: "destructive",
+            })
+            throw new Error("Failed to create reminder")
+        }
+
+        const createdReminder = await response.json()
+        results.push(createdReminder)
+
+        // ✅ Show success toast
+        toast({
+            title: "Reminder Created 🎉",
+            description: `Your ${reminder.type
+                .toLowerCase()
+                .replace("_", " ")} reminder has been set for ${new Date(
+                reminder.remindAt
+            ).toLocaleString()}.`,
+        })
+
+        // ✅ Send email if type is EMAIL
+        if (reminder.type === "EMAIL") {
+            await this.sendEmail(
+                userId,
+                "Reminder Notification",
+                `Reminder set for todoId: ${todoId} at ${reminder.remindAt}`
+            )
+        }
+    } catch (error) {
+        console.error("createReminder error:", error)
+        toast({
+            title: "Error",
+            description: "Something went wrong while creating the reminder.",
+            variant: "destructive",
+        })
     }
+}
+
+return results
+}
 
 
 
-    async updateReminder(id: number, data: ReminderRequest): Promise<ReminderResponse> {
+
+async updateReminder(id: number, data: ReminderRequest): Promise<ReminderResponse> {
         const response = await fetch(`${API_BASE_URL}/api/reminders/${id}`, {
             method: "PUT",
             headers: {
